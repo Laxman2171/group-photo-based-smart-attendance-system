@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark Attendance Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        input, button { padding: 10px; margin-top: 10px; width: 500px; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+        #result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; background-color: #f0f0f0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+    <h2>Mark Attendance Test</h2>
+
+    <form id="attendanceForm">
+        <label for="token">1. Paste Teacher Token:</label><br>
+        <input type="text" id="token" placeholder="Paste the Teacher's login token here" required><br><br>
+
+        <label for="classId">2. Paste Class ID:</label><br>
+        <input type="text" id="classId" placeholder="Paste the ID of the class to take attendance for" required><br><br>
+
+        <label for="groupPhotoUrl">3. Paste Group Photo URL:</label><br>
+        <input type="text" id="groupPhotoUrl" placeholder="Paste the Cloudinary URL of the uploaded group photo" required><br><br>
+
+        <button type="submit">4. Mark Attendance</button>
+    </form>
+
+    <h3>Result:</h3>
+    <pre id="result">Waiting for test...</pre>
+
+    <script>
+        const form = document.getElementById('attendanceForm');
+        const resultDiv = document.getElementById('result');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            resultDiv.textContent = 'Sending request to Node.js server...';
+
+            const token = document.getElementById('token').value;
+            const classId = document.getElementById('classId').value;
+            const groupPhotoUrl = document.getElementById('groupPhotoUrl').value;
+
+            if (!token || !classId || !groupPhotoUrl) {
+                resultDiv.textContent = 'Error: Please fill in all three fields.';
+                return;
+            }
+
+            try {
+                const apiUrl = `http://localhost:5000/api/attendance/mark/${classId}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        groupPhotoUrl: groupPhotoUrl
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Something went wrong');
+                }
+
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Upload Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        input, button { padding: 10px; margin-top: 10px; width: 300px; }
+        #result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; background-color: #f0f0f0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+    <h2>Student Profile Photo Upload</h2>
+
+    <form id="uploadForm">
+        <label for="token">1. Paste Student Token:</label><br>
+        <input type="text" id="token" placeholder="Paste your student token here" required><br><br>
+
+        <label for="photo">2. Choose Profile Photo:</label><br>
+        <input type="file" id="photo" required><br><br>
+
+        <button type="submit">3. Upload Image</button>
+    </form>
+
+    <h3>Result:</h3>
+    <pre id="result">Waiting for upload...</pre>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const tokenInput = document.getElementById('token');
+        const photoInput = document.getElementById('photo');
+        const resultDiv = document.getElementById('result');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            resultDiv.textContent = 'Uploading, please wait...';
+
+            const token = tokenInput.value;
+            const file = photoInput.files[0];
+
+            if (!token || !file) {
+                resultDiv.textContent = 'Error: Please provide both a token and a file.';
+                return;
+            }
+
+            const formData = new FormData();
+            // This key is for the student route
+            formData.append('profilePhoto', file); 
+
+            try {
+                // This URL is for the student route
+                const response = await fetch('http://localhost:5000/api/students/upload-photo', { 
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Something went wrong');
+                }
+                
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+
+</body>
+</html>

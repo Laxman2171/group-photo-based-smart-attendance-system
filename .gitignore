@@ -1,0 +1,15 @@
+# Node modules (very large and can be reinstalled)
+/backend/node_modules
+/frontend/node_modules
+
+# Environment files with secrets
+/backend/.env
+/frontend/.env
+
+# Python virtual environment (also very large)
+/ai-service/venv/
+
+# IDE / OS generated files
+.vscode/
+__pycache__/
+*.pyc
