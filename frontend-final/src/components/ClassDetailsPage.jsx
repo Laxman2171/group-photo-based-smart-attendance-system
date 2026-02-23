@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import EnrollStudentForm from './EnrollStudentForm';
 import MarkAttendanceForm from './MarkAttendanceForm';
-import { Container, Title, Text, Paper, List, Loader, Divider, Anchor, Group, Button, Box, ThemeIcon } from '@mantine/core';
+import { 
+  Container, Title, Text, Paper, Loader, Divider, Group, Button, Box, 
+  ThemeIcon, Badge, Avatar, SimpleGrid, Tabs, Stack, Card, ActionIcon,
+  Tooltip, Progress, RingProgress, Flex, rem, Modal, Table, ScrollArea
+} from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
-import { IconCircleCheck, IconArrowLeft, IconDownload } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
+import { 
+  IconCircleCheck, IconArrowLeft, IconDownload, IconUsers, IconCamera,
+  IconCalendarStats, IconUserPlus, IconChartBar, IconClipboardCheck,
+  IconBook, IconSchool, IconClock, IconFileSpreadsheet, IconPhoto,
+  IconChevronRight, IconTrendingUp, IconCalendar
+} from '@tabler/icons-react';
 
+// ============================================================================
+// OLD CLASS DETAILS PAGE CODE (COMMENTED OUT)
+// ============================================================================
+/*
 function ClassDetailsPage() {
   const { classId } = useParams();
   const { token } = useAuth();
@@ -114,6 +128,523 @@ function ClassDetailsPage() {
         <EnrollStudentForm classId={classId} onStudentEnrolled={fetchData} />
       </Paper>
     </Container>
+  );
+}
+*/
+// ============================================================================
+// NEW MODERN CLASS DETAILS PAGE
+// ============================================================================
+
+// Gradient backgrounds
+const gradients = {
+  blue: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  green: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+  orange: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  cyan: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+};
+
+// Stat Card Component
+function StatCard({ icon: Icon, title, value, color, gradient }) {
+  return (
+    <Paper
+      radius="lg"
+      p="lg"
+      style={{
+        background: gradient || 'white',
+        color: gradient ? 'white' : 'inherit',
+        border: gradient ? 'none' : '1px solid var(--mantine-color-gray-2)',
+      }}
+    >
+      <Group>
+        <ThemeIcon 
+          size={50} 
+          radius="xl" 
+          color={color}
+          variant={gradient ? 'white' : 'light'}
+          style={gradient ? { background: 'rgba(255,255,255,0.2)', color: 'white' } : {}}
+        >
+          <Icon size={24} />
+        </ThemeIcon>
+        <Box>
+          <Text size="xs" tt="uppercase" fw={600} style={{ opacity: gradient ? 0.9 : 0.7 }}>
+            {title}
+          </Text>
+          <Text size={rem(28)} fw={700}>{value}</Text>
+        </Box>
+      </Group>
+    </Paper>
+  );
+}
+
+// Student Card Component
+function StudentCard({ student }) {
+  const getInitials = (name) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const colors = ['blue', 'cyan', 'teal', 'green', 'lime', 'yellow', 'orange', 'red', 'pink', 'grape', 'violet', 'indigo'];
+  const colorIndex = student.name.charCodeAt(0) % colors.length;
+
+  return (
+    <Card withBorder padding="sm" radius="lg">
+      <Group>
+        <Avatar 
+          size={45} 
+          radius="xl" 
+          color={colors[colorIndex]}
+          src={student.photoUrl}
+        >
+          {getInitials(student.name)}
+        </Avatar>
+        <Box style={{ flex: 1 }}>
+          <Text fw={600} size="sm">{student.name}</Text>
+          <Text size="xs" c="dimmed">PRN: {student.prn}</Text>
+        </Box>
+        <Badge variant="light" color="green" size="sm">
+          <Group gap={4}>
+            <IconCircleCheck size={12} />
+            Enrolled
+          </Group>
+        </Badge>
+      </Group>
+    </Card>
+  );
+}
+
+function ClassDetailsPage() {
+  const { classId } = useParams();
+  const { token } = useAuth();
+  const [searchParams] = useSearchParams();
+  
+  // Get initial tab from URL query param
+  const initialTab = searchParams.get('tab') || 'attendance';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  const [classDetails, setClassDetails] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
+  const [reportError, setReportError] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+  
+  const [reportModalOpened, { open: openReportModal, close: closeReportModal }] = useDisclosure(false);
+  const [enrollModalOpened, { open: openEnrollModal, close: closeEnrollModal }] = useDisclosure(false);
+
+  const fetchData = async () => {
+    if (!token) return;
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const response = await axios.get(`http://localhost:5000/api/classes/${classId}`, config);
+      setClassDetails(response.data);
+    } catch (err) {
+      setError("Failed to fetch class details.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    setIsLoading(true);
+    fetchData();
+  }, [classId, token]);
+
+  // Auto-open modals based on URL query param action
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'enroll' && !isLoading) {
+      openEnrollModal();
+    } else if (action === 'report' && !isLoading) {
+      openReportModal();
+    }
+  }, [searchParams, isLoading]);
+  
+  const handleGenerateReport = async () => {
+    if (!fromDate || !toDate) {
+      setReportError('Please select both a "From" and "To" date.');
+      return;
+    }
+    setReportError('');
+    setReportLoading(true);
+    try {
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      };
+      const body = { fromDate, toDate };
+      const response = await axios.post(`http://localhost:5000/api/reports/class-summary/${classId}`, body, config);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      const contentDisposition = response.headers['content-disposition'];
+      let fileName = `Report-${classDetails.name}.xlsx`;
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
+      }
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      closeReportModal();
+    } catch (err) {
+      console.error("Failed to generate report", err);
+      setReportError(err.response?.data?.message || "Could not generate report.");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleStudentEnrolled = () => {
+    closeEnrollModal();
+    fetchData();
+  };
+
+  // Get current date
+  const getCurrentDate = () => {
+    return new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Container size="lg" py={100}>
+        <Flex direction="column" align="center" gap="md">
+          <Loader size="lg" type="dots" />
+          <Text c="dimmed">Loading class details...</Text>
+        </Flex>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container size="lg" py={100}>
+        <Paper withBorder p="xl" radius="lg" ta="center">
+          <ThemeIcon size={60} radius="xl" color="red" variant="light">
+            <IconBook size={30} />
+          </ThemeIcon>
+          <Title order={3} mt="md">Failed to Load Class</Title>
+          <Text c="dimmed" mt="sm">{error}</Text>
+          <Button mt="lg" onClick={fetchData}>Try Again</Button>
+        </Paper>
+      </Container>
+    );
+  }
+
+  if (!classDetails) return <div>Class not found.</div>;
+
+  const studentCount = classDetails.students?.length || 0;
+
+  return (
+    <Box style={{ minHeight: '100vh', background: 'var(--mantine-color-gray-0)' }}>
+      {/* Header Section */}
+      <Box 
+        py="xl" 
+        px="md"
+        style={{ 
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+          color: 'white',
+        }}
+      >
+        <Container size="lg">
+          {/* Back Button */}
+          <Button 
+            component={Link} 
+            to="/teacher-dashboard"
+            variant="subtle" 
+            color="white"
+            leftSection={<IconArrowLeft size={16} />}
+            mb="md"
+            style={{ opacity: 0.9 }}
+          >
+            Back to Dashboard
+          </Button>
+
+          <Group justify="space-between" align="flex-start">
+            <Box>
+              <Group gap="md" mb="sm">
+                <Avatar 
+                  size={60} 
+                  radius="lg"
+                  style={{ background: gradients.blue }}
+                >
+                  <IconBook size={28} color="white" />
+                </Avatar>
+                <Box>
+                  <Title order={1} fw={700}>{classDetails.name}</Title>
+                  <Text size="lg" style={{ opacity: 0.8 }}>{classDetails.subject}</Text>
+                </Box>
+              </Group>
+              <Group gap="xs" mt="md">
+                <Badge variant="light" color="blue" size="lg">{classDetails.department || 'CSE'}</Badge>
+                <Badge variant="light" color="cyan" size="lg">{classDetails.year || '1st'} Year</Badge>
+                <Badge variant="light" color="teal" size="lg">Semester {classDetails.semester || '1'}</Badge>
+              </Group>
+            </Box>
+            <Text size="sm" style={{ opacity: 0.7 }}>{getCurrentDate()}</Text>
+          </Group>
+        </Container>
+      </Box>
+
+      <Container size="lg" py="xl">
+        {/* Stats Cards */}
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="xl">
+          <StatCard 
+            icon={IconUsers} 
+            title="Enrolled Students" 
+            value={studentCount}
+            gradient={gradients.blue}
+          />
+          <StatCard 
+            icon={IconCalendarStats} 
+            title="Total Sessions" 
+            value="--"
+            color="green"
+          />
+          <StatCard 
+            icon={IconTrendingUp} 
+            title="Avg Attendance" 
+            value="--"
+            color="orange"
+          />
+          <StatCard 
+            icon={IconClock} 
+            title="Last Session" 
+            value="--"
+            color="cyan"
+          />
+        </SimpleGrid>
+
+        {/* Main Content with Tabs */}
+        <Tabs value={activeTab} onChange={setActiveTab} radius="lg">
+          <Paper withBorder radius="lg" mb="lg">
+            <Tabs.List grow p="xs">
+              <Tabs.Tab 
+                value="attendance" 
+                leftSection={<IconCamera size={18} />}
+                style={{ fontWeight: 500 }}
+              >
+                Take Attendance
+              </Tabs.Tab>
+              <Tabs.Tab 
+                value="students" 
+                leftSection={<IconUsers size={18} />}
+                style={{ fontWeight: 500 }}
+              >
+                Students ({studentCount})
+              </Tabs.Tab>
+              <Tabs.Tab 
+                value="reports" 
+                leftSection={<IconChartBar size={18} />}
+                style={{ fontWeight: 500 }}
+              >
+                Reports
+              </Tabs.Tab>
+            </Tabs.List>
+          </Paper>
+
+          {/* Attendance Tab */}
+          <Tabs.Panel value="attendance">
+            <MarkAttendanceForm classId={classId} />
+          </Tabs.Panel>
+
+          {/* Students Tab */}
+          <Tabs.Panel value="students">
+            <Paper withBorder radius="lg" p="xl">
+              <Group justify="space-between" mb="xl">
+                <Box>
+                  <Title order={3}>Enrolled Students</Title>
+                  <Text size="sm" c="dimmed">Manage students in this class</Text>
+                </Box>
+                <Button 
+                  leftSection={<IconUserPlus size={18} />}
+                  radius="xl"
+                  onClick={openEnrollModal}
+                >
+                  Enroll Students
+                </Button>
+              </Group>
+
+              {studentCount > 0 ? (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                  {classDetails.students.map(student => (
+                    <StudentCard key={student._id} student={student} />
+                  ))}
+                </SimpleGrid>
+              ) : (
+                <Paper 
+                  withBorder 
+                  radius="lg" 
+                  p={60} 
+                  ta="center"
+                  style={{ borderStyle: 'dashed' }}
+                >
+                  <ThemeIcon size={70} radius="xl" color="blue" variant="light">
+                    <IconSchool size={35} />
+                  </ThemeIcon>
+                  <Title order={3} mt="lg">No Students Yet</Title>
+                  <Text c="dimmed" mt="sm" maw={400} mx="auto">
+                    Start by enrolling students to this class. They will then appear in attendance records.
+                  </Text>
+                  <Button 
+                    mt="xl" 
+                    size="lg" 
+                    radius="xl"
+                    leftSection={<IconUserPlus size={20} />}
+                    onClick={openEnrollModal}
+                  >
+                    Enroll Your First Student
+                  </Button>
+                </Paper>
+              )}
+            </Paper>
+          </Tabs.Panel>
+
+          {/* Reports Tab */}
+          <Tabs.Panel value="reports">
+            <Paper withBorder radius="lg" p="xl">
+              <Group justify="space-between" mb="xl">
+                <Box>
+                  <Title order={3}>Attendance Reports</Title>
+                  <Text size="sm" c="dimmed">Generate and download attendance reports</Text>
+                </Box>
+              </Group>
+
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+                <Card 
+                  withBorder 
+                  padding="xl" 
+                  radius="lg"
+                  style={{
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                  }}
+                  onClick={openReportModal}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <ThemeIcon size={60} radius="xl" color="green" variant="light" mb="md">
+                    <IconFileSpreadsheet size={30} />
+                  </ThemeIcon>
+                  <Title order={4}>Excel Report</Title>
+                  <Text size="sm" c="dimmed" mt="xs">
+                    Download detailed attendance data in Excel format with date-wise breakdown.
+                  </Text>
+                  <Group mt="lg" gap="xs">
+                    <Text size="sm" c="green" fw={500}>Generate Report</Text>
+                    <IconChevronRight size={16} color="var(--mantine-color-green-6)" />
+                  </Group>
+                </Card>
+
+                <Card withBorder padding="xl" radius="lg" style={{ opacity: 0.6 }}>
+                  <ThemeIcon size={60} radius="xl" color="blue" variant="light" mb="md">
+                    <IconChartBar size={30} />
+                  </ThemeIcon>
+                  <Title order={4}>Visual Analytics</Title>
+                  <Text size="sm" c="dimmed" mt="xs">
+                    View charts and graphs for attendance trends and patterns.
+                  </Text>
+                  <Badge mt="lg" variant="light" color="gray">Coming Soon</Badge>
+                </Card>
+              </SimpleGrid>
+            </Paper>
+          </Tabs.Panel>
+        </Tabs>
+      </Container>
+
+      {/* Generate Report Modal */}
+      <Modal 
+        opened={reportModalOpened} 
+        onClose={closeReportModal}
+        title={
+          <Group gap="sm">
+            <ThemeIcon size={30} radius="xl" color="green" variant="light">
+              <IconFileSpreadsheet size={18} />
+            </ThemeIcon>
+            <Text fw={600} size="lg">Generate Attendance Report</Text>
+          </Group>
+        }
+        size="md"
+        radius="lg"
+        padding="xl"
+      >
+        <Text size="sm" c="dimmed" mb="lg">
+          Select a date range to generate an Excel report with attendance data for all students.
+        </Text>
+        
+        <Stack gap="md">
+          <DatePickerInput 
+            label="From Date" 
+            placeholder="Select start date" 
+            value={fromDate} 
+            onChange={setFromDate}
+            leftSection={<IconCalendar size={16} />}
+            radius="md"
+            size="md"
+          />
+          <DatePickerInput 
+            label="To Date" 
+            placeholder="Select end date" 
+            value={toDate} 
+            onChange={setToDate}
+            leftSection={<IconCalendar size={16} />}
+            radius="md"
+            size="md"
+          />
+        </Stack>
+
+        {reportError && (
+          <Text c="red" size="sm" mt="md">{reportError}</Text>
+        )}
+
+        <Group justify="flex-end" mt="xl">
+          <Button variant="subtle" onClick={closeReportModal} radius="xl">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleGenerateReport} 
+            loading={reportLoading}
+            leftSection={<IconDownload size={18} />}
+            radius="xl"
+            color="green"
+          >
+            Download Report
+          </Button>
+        </Group>
+      </Modal>
+
+      {/* Enroll Students Modal */}
+      <Modal 
+        opened={enrollModalOpened} 
+        onClose={closeEnrollModal}
+        title={
+          <Group gap="sm">
+            <ThemeIcon size={30} radius="xl" color="blue" variant="light">
+              <IconUserPlus size={18} />
+            </ThemeIcon>
+            <Text fw={600} size="lg">Enroll Students</Text>
+          </Group>
+        }
+        size="lg"
+        radius="lg"
+        padding="xl"
+      >
+        <EnrollStudentForm classId={classId} onStudentEnrolled={handleStudentEnrolled} />
+      </Modal>
+    </Box>
   );
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import CreateClassForm from './CreateClassForm';
@@ -284,11 +284,64 @@ function QuickActionButton({ icon: Icon, label, color, onClick }) {
 
 function TeacherDashboard() {
   const { user, logout, token } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({ totalClasses: 0, totalStudents: 0 });
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [createModalOpened, { open: openCreateModal, close: closeCreateModal }] = useDisclosure(false);
+  
+  // Class selector modal state
+  const [classSelectorOpened, { open: openClassSelector, close: closeClassSelector }] = useDisclosure(false);
+  const [selectedAction, setSelectedAction] = useState(null); // 'attendance' | 'addStudent' | 'reports'
+  
+  // Handle quick action click - opens class selector
+  const handleQuickAction = (action) => {
+    if (classes.length === 0) {
+      // No classes, prompt to create one
+      openCreateModal();
+      return;
+    }
+    if (classes.length === 1) {
+      // Only one class, go directly
+      navigateToClassAction(classes[0]._id, action);
+      return;
+    }
+    // Multiple classes, show selector
+    setSelectedAction(action);
+    openClassSelector();
+  };
+  
+  // Navigate to class with specific tab/action
+  const navigateToClassAction = (classId, action) => {
+    closeClassSelector();
+    // Navigate to class page - the tab will be determined by URL or state
+    // For now, we use query params to indicate which tab to open
+    const tabMap = {
+      'attendance': 'attendance',
+      'addStudent': 'students', 
+      'reports': 'reports'
+    };
+    const actionMap = {
+      'addStudent': 'enroll',
+      'reports': 'report'
+    };
+    let url = `/class/${classId}?tab=${tabMap[action] || 'attendance'}`;
+    if (actionMap[action]) {
+      url += `&action=${actionMap[action]}`;
+    }
+    navigate(url);
+  };
+  
+  // Get action display info
+  const getActionInfo = (action) => {
+    const actionMap = {
+      'attendance': { title: 'Take Attendance', icon: IconCamera, color: 'orange', description: 'Upload a group photo to mark attendance' },
+      'addStudent': { title: 'Add Students', icon: IconUserPlus, color: 'green', description: 'Enroll students to a class' },
+      'reports': { title: 'View Reports', icon: IconChartBar, color: 'grape', description: 'Generate attendance reports' }
+    };
+    return actionMap[action] || actionMap['attendance'];
+  };
 
   const fetchData = async () => {
     if (!token) return;
@@ -466,19 +519,19 @@ function TeacherDashboard() {
               icon={IconUserPlus} 
               label="Add Student" 
               color="green"
-              onClick={() => classes.length > 0 && window.location.assign(`/class/${classes[0]._id}`)}
+              onClick={() => handleQuickAction('addStudent')}
             />
             <QuickActionButton 
               icon={IconCamera} 
               label="Take Attendance" 
               color="orange"
-              onClick={() => classes.length > 0 && window.location.assign(`/class/${classes[0]._id}`)}
+              onClick={() => handleQuickAction('attendance')}
             />
             <QuickActionButton 
               icon={IconChartBar} 
               label="View Reports" 
               color="grape"
-              onClick={() => classes.length > 0 && window.location.assign(`/class/${classes[0]._id}`)}
+              onClick={() => handleQuickAction('reports')}
             />
           </SimpleGrid>
         </Paper>
@@ -552,6 +605,89 @@ function TeacherDashboard() {
         padding="xl"
       >
         <CreateClassForm onClassCreated={handleClassCreated} />
+      </Modal>
+
+      {/* Class Selector Modal for Quick Actions */}
+      <Modal 
+        opened={classSelectorOpened} 
+        onClose={closeClassSelector} 
+        title={
+          selectedAction && (
+            <Group gap="sm">
+              <ThemeIcon size={30} radius="xl" color={getActionInfo(selectedAction).color} variant="light">
+                {React.createElement(getActionInfo(selectedAction).icon, { size: 18 })}
+              </ThemeIcon>
+              <Box>
+                <Text fw={600} size="lg">{getActionInfo(selectedAction).title}</Text>
+                <Text size="xs" c="dimmed">{getActionInfo(selectedAction).description}</Text>
+              </Box>
+            </Group>
+          )
+        }
+        size="md"
+        radius="lg"
+        padding="xl"
+      >
+        <Text size="sm" c="dimmed" mb="lg">
+          Select a class to continue:
+        </Text>
+        <Stack gap="sm">
+          {classes.map((cls) => {
+            const studentCount = cls.students?.length || 0;
+            return (
+              <Card
+                key={cls._id}
+                withBorder
+                padding="md"
+                radius="lg"
+                style={{
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => navigateToClassAction(cls._id, selectedAction)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateX(8px)';
+                  e.currentTarget.style.borderColor = `var(--mantine-color-${getActionInfo(selectedAction).color}-4)`;
+                  e.currentTarget.style.background = `var(--mantine-color-${getActionInfo(selectedAction).color}-0)`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateX(0)';
+                  e.currentTarget.style.borderColor = 'var(--mantine-color-gray-3)';
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                <Group justify="space-between">
+                  <Group gap="md">
+                    <Avatar 
+                      size={45} 
+                      radius="md"
+                      style={{ background: gradients.blue }}
+                    >
+                      <IconBooks size={22} color="white" />
+                    </Avatar>
+                    <Box>
+                      <Text fw={600}>{cls.name}</Text>
+                      <Text size="sm" c="dimmed">{cls.subject}</Text>
+                    </Box>
+                  </Group>
+                  <Group gap="xs">
+                    <Badge variant="light" color="blue" size="sm">
+                      {studentCount} students
+                    </Badge>
+                    <ThemeIcon 
+                      size={30} 
+                      radius="xl" 
+                      color={getActionInfo(selectedAction).color} 
+                      variant="light"
+                    >
+                      <IconChevronRight size={16} />
+                    </ThemeIcon>
+                  </Group>
+                </Group>
+              </Card>
+            );
+          })}
+        </Stack>
       </Modal>
     </Box>
   );
