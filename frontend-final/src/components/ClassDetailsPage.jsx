@@ -15,7 +15,7 @@ import {
   IconCircleCheck, IconArrowLeft, IconDownload, IconUsers, IconCamera,
   IconCalendarStats, IconUserPlus, IconChartBar, IconClipboardCheck,
   IconBook, IconSchool, IconClock, IconFileSpreadsheet, IconPhoto,
-  IconChevronRight, IconTrendingUp, IconCalendar
+  IconChevronRight, IconTrendingUp, IconCalendar, IconX, IconArrowRight
 } from '@tabler/icons-react';
 
 // ============================================================================
@@ -266,6 +266,10 @@ function ClassDetailsPage() {
       setReportError('Please select both a "From" and "To" date.');
       return;
     }
+    if (fromDate > toDate) {
+      setReportError('"From" date cannot be after "To" date.');
+      return;
+    }
     setReportError('');
     setReportLoading(true);
     try {
@@ -273,8 +277,24 @@ function ClassDetailsPage() {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       };
-      const body = { fromDate, toDate };
+      // Convert dates to ISO strings for consistent backend parsing
+      const body = { 
+        fromDate: fromDate.toISOString(), 
+        toDate: toDate.toISOString() 
+      };
       const response = await axios.post(`http://localhost:5000/api/reports/class-summary/${classId}`, body, config);
+      
+      // Check if response is actually an error (JSON) disguised as blob
+      const contentType = response.headers['content-type'];
+      if (contentType && contentType.includes('application/json')) {
+        // It's an error response
+        const text = await response.data.text();
+        const errorData = JSON.parse(text);
+        setReportError(errorData.message || 'Could not generate report.');
+        setReportLoading(false);
+        return;
+      }
+      
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -291,7 +311,18 @@ function ClassDetailsPage() {
       closeReportModal();
     } catch (err) {
       console.error("Failed to generate report", err);
-      setReportError(err.response?.data?.message || "Could not generate report.");
+      // Handle blob error response
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const errorData = JSON.parse(text);
+          setReportError(errorData.message || 'Could not generate report.');
+        } catch {
+          setReportError('Could not generate report. Please try again.');
+        }
+      } else {
+        setReportError(err.response?.data?.message || 'Could not generate report.');
+      }
     } finally {
       setReportLoading(false);
     }
@@ -571,57 +602,175 @@ function ClassDetailsPage() {
         onClose={closeReportModal}
         title={
           <Group gap="sm">
-            <ThemeIcon size={30} radius="xl" color="green" variant="light">
-              <IconFileSpreadsheet size={18} />
+            <ThemeIcon size={35} radius="xl" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
+              <IconFileSpreadsheet size={20} color="white" />
             </ThemeIcon>
-            <Text fw={600} size="lg">Generate Attendance Report</Text>
+            <Box>
+              <Text fw={600} size="lg">Generate Report</Text>
+              <Text size="xs" c="dimmed">Export attendance to Excel</Text>
+            </Box>
           </Group>
         }
-        size="md"
+        size="lg"
         radius="lg"
         padding="xl"
+        styles={{ header: { paddingBottom: 0 } }}
       >
-        <Text size="sm" c="dimmed" mb="lg">
-          Select a date range to generate an Excel report with attendance data for all students.
+        {/* Visual Date Range Banner */}
+        <Paper 
+          radius="lg" 
+          p="lg" 
+          mt="md"
+          style={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+          }}
+        >
+          <Group justify="space-between" align="center">
+            <Box>
+              <Text size="xs" style={{ opacity: 0.8 }}>Generating report for</Text>
+              <Title order={3} mt={4}>{classDetails?.name}</Title>
+              <Text size="sm" style={{ opacity: 0.9 }}>{classDetails?.subject}</Text>
+            </Box>
+            <ThemeIcon size={50} radius="xl" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <IconFileSpreadsheet size={26} color="white" />
+            </ThemeIcon>
+          </Group>
+        </Paper>
+
+        <Text size="sm" c="dimmed" mt="xl" mb="lg">
+          Select the date range for your attendance export. The report will include all enrolled students with their attendance percentage.
         </Text>
         
-        <Stack gap="md">
-          <DatePickerInput 
-            label="From Date" 
-            placeholder="Select start date" 
-            value={fromDate} 
-            onChange={setFromDate}
-            leftSection={<IconCalendar size={16} />}
-            radius="md"
-            size="md"
-          />
-          <DatePickerInput 
-            label="To Date" 
-            placeholder="Select end date" 
-            value={toDate} 
-            onChange={setToDate}
-            leftSection={<IconCalendar size={16} />}
-            radius="md"
-            size="md"
-          />
-        </Stack>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          <Paper withBorder p="md" radius="lg" style={{ background: 'var(--mantine-color-gray-0)' }}>
+            <Group gap="xs" mb="sm">
+              <ThemeIcon size={28} radius="xl" color="blue" variant="light">
+                <IconCalendar size={16} />
+              </ThemeIcon>
+              <Text size="sm" fw={500}>Start Date</Text>
+            </Group>
+            <DatePickerInput 
+              placeholder="Pick start date" 
+              value={fromDate} 
+              onChange={setFromDate}
+              radius="md"
+              size="md"
+              clearable
+              valueFormat="DD MMM YYYY"
+              styles={{ input: { fontWeight: 500 } }}
+            />
+          </Paper>
+          
+          <Paper withBorder p="md" radius="lg" style={{ background: 'var(--mantine-color-gray-0)' }}>
+            <Group gap="xs" mb="sm">
+              <ThemeIcon size={28} radius="xl" color="violet" variant="light">
+                <IconCalendar size={16} />
+              </ThemeIcon>
+              <Text size="sm" fw={500}>End Date</Text>
+            </Group>
+            <DatePickerInput 
+              placeholder="Pick end date" 
+              value={toDate} 
+              onChange={setToDate}
+              radius="md"
+              size="md"
+              clearable
+              valueFormat="DD MMM YYYY"
+              minDate={fromDate || undefined}
+              styles={{ input: { fontWeight: 500 } }}
+            />
+          </Paper>
+        </SimpleGrid>
+
+        {/* Quick Date Presets */}
+        <Group mt="md" gap="xs">
+          <Text size="xs" c="dimmed">Quick select:</Text>
+          <Button 
+            variant="light" 
+            size="xs" 
+            radius="xl"
+            onClick={() => {
+              const today = new Date();
+              const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+              setFromDate(weekAgo);
+              setToDate(today);
+            }}
+          >
+            Last 7 days
+          </Button>
+          <Button 
+            variant="light" 
+            size="xs" 
+            radius="xl"
+            onClick={() => {
+              const today = new Date();
+              const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+              setFromDate(monthAgo);
+              setToDate(today);
+            }}
+          >
+            Last 30 days
+          </Button>
+          <Button 
+            variant="light" 
+            size="xs" 
+            radius="xl"
+            onClick={() => {
+              const today = new Date();
+              const semesterStart = new Date(today.getFullYear(), today.getMonth() >= 6 ? 6 : 0, 1);
+              setFromDate(semesterStart);
+              setToDate(today);
+            }}
+          >
+            This Semester
+          </Button>
+        </Group>
+
+        {/* Selected Range Preview */}
+        {fromDate && toDate && (
+          <Paper withBorder p="sm" radius="md" mt="lg" style={{ background: 'var(--mantine-color-green-0)', borderColor: 'var(--mantine-color-green-4)' }}>
+            <Group justify="center" gap="lg">
+              <Box ta="center">
+                <Text size="xs" c="dimmed">From</Text>
+                <Text fw={600} c="green.7">{fromDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              </Box>
+              <ThemeIcon size={30} radius="xl" color="green" variant="light">
+                <IconArrowRight size={16} />
+              </ThemeIcon>
+              <Box ta="center">
+                <Text size="xs" c="dimmed">To</Text>
+                <Text fw={600} c="green.7">{toDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              </Box>
+            </Group>
+          </Paper>
+        )}
 
         {reportError && (
-          <Text c="red" size="sm" mt="md">{reportError}</Text>
+          <Paper withBorder p="sm" mt="md" radius="md" style={{ borderColor: 'var(--mantine-color-red-4)', background: 'var(--mantine-color-red-0)' }}>
+            <Group gap="xs">
+              <ThemeIcon size={24} radius="xl" color="red" variant="light">
+                <IconX size={14} />
+              </ThemeIcon>
+              <Text c="red" size="sm">{reportError}</Text>
+            </Group>
+          </Paper>
         )}
 
         <Group justify="flex-end" mt="xl">
-          <Button variant="subtle" onClick={closeReportModal} radius="xl">
+          <Button variant="subtle" onClick={closeReportModal} radius="xl" size="md">
             Cancel
           </Button>
           <Button 
             onClick={handleGenerateReport} 
             loading={reportLoading}
-            leftSection={<IconDownload size={18} />}
+            leftSection={!reportLoading && <IconDownload size={18} />}
             radius="xl"
-            color="green"
+            size="md"
+            disabled={!fromDate || !toDate}
+            style={{ background: fromDate && toDate ? 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' : undefined }}
           >
-            Download Report
+            {reportLoading ? 'Generating...' : 'Download Report'}
           </Button>
         </Group>
       </Modal>
