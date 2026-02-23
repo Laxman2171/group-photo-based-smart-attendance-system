@@ -6,24 +6,50 @@ import { Teacher } from "../models/Teacher.js";
 
 const router = Router();
 
-// Route: CREATE A NEW CLASS (Teacher Only)
+// --- THIS IS THE NEW, UPGRADED "CREATE CLASS" ROUTE ---
 router.post("/create", auth("teacher"), async (req, res) => {
   try {
-    const { name, subject, year, department } = req.body;
-    if (!name || !subject || !year || !department) {
+    const { name, subject, year, department, semester } = req.body;
+    if (!name || !subject || !year || !department || !semester) {
       return res.status(400).json({ message: "All fields are required" });
     }
+
+    // 1. Find all students that match the new class's criteria
+    const matchingStudents = await Student.find({ department, year, semester });
+    const studentIdsToEnroll = matchingStudents.map(student => student._id);
+
+    console.log(`Found ${studentIdsToEnroll.length} students to auto-enroll.`);
+
+    // 2. Create the new class and immediately add the found students
     const classDoc = await ClassModel.create({
-      name, subject, year, department, teacher: req.user.id,
+      name, 
+      subject, 
+      year, 
+      department, 
+      semester,
+      teacher: req.user.id,
+      students: studentIdsToEnroll // Auto-populate the students array
     });
+
+    // 3. Update the teacher's record with the new class ID
     await Teacher.findByIdAndUpdate(req.user.id, { $push: { classes: classDoc._id } });
+
+    // 4. Update all the enrolled students' records to add this new class
+    if (studentIdsToEnroll.length > 0) {
+      await Student.updateMany(
+          { _id: { $in: studentIdsToEnroll } },
+          { $addToSet: { classes: classDoc._id } }
+      );
+    }
+
     res.status(201).json(classDoc);
   } catch (e) {
+    console.error("Error while creating class:", e);
     res.status(500).json({ message: "Server error while creating class" });
   }
 });
 
-// Route: ENROLL STUDENTS IN A CLASS (Teacher Only)
+// Route: MANUALLY ENROLL STUDENTS IN A CLASS (Teacher Only)
 router.post("/:classId/enroll", auth("teacher"), async (req, res) => {
     try {
         const { classId } = req.params;
@@ -62,7 +88,6 @@ router.get("/teacher", auth("teacher"), async (req, res) => {
 router.get("/:classId", auth("teacher"), async (req, res) => {
   try {
     const { classId } = req.params;
-    // THE FIX: Changed 'roll' to 'prn' to match our new Student model
     const classDoc = await ClassModel.findById(classId).populate('students', 'name prn');
     if (!classDoc) {
       return res.status(404).json({ message: "Class not found." });
@@ -92,6 +117,44 @@ router.get("/available", auth("student"), async (req, res) => {
     res.json(availableClasses);
   } catch (e) {
     console.error("Error fetching available classes:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+// DELETE A CLASS (Teacher Only, with Ownership Check)
+router.delete("/:classId", auth("teacher"), async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const teacherId = req.user.id;
+
+    // 1. Find the class to ensure it exists and the teacher actually owns it
+    const classToDelete = await ClassModel.findOne({ _id: classId, teacher: teacherId });
+
+    if (!classToDelete) {
+      return res.status(404).json({ message: "Class not found or you don't have permission to delete it." });
+    }
+
+    // 2. Delete the class itself
+    await ClassModel.findByIdAndDelete(classId);
+
+    // 3. Clean up references (this is the professional way to keep the database clean)
+    // Remove the class from the teacher's 'classes' array
+    await Teacher.findByIdAndUpdate(teacherId, { $pull: { classes: classId } });
+
+    // Remove the class from all enrolled students' 'classes' array
+    await Student.updateMany(
+        { classes: classId },
+        { $pull: { classes: classId } }
+    );
+
+    // Bonus: Delete all attendance records associated with this class
+    await Attendance.deleteMany({ class: classId });
+
+    res.status(200).json({ message: "Class and all associated data deleted successfully" });
+
+  } catch (e) {
+    console.error("Error deleting class:", e);
     res.status(500).json({ message: "Server error" });
   }
 });

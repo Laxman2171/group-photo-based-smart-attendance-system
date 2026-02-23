@@ -1,15 +1,38 @@
+# Old/unused folders
+/frontend-not -used-this-is-old-one/
+
 # Node modules (very large and can be reinstalled)
 /backend/node_modules
 /frontend/node_modules
+/frontend-final/node_modules
 
 # Environment files with secrets
 /backend/.env
 /frontend/.env
+/frontend-final/.env
+.env
+.env.local
+.env.*.local
 
 # Python virtual environment (also very large)
 /ai-service/venv/
+/ai-service/__pycache__/
 
 # IDE / OS generated files
 .vscode/
+.idea/
 __pycache__/
 *.pyc
+*.pyo
+
+# Build outputs
+/frontend-final/dist/
+/frontend/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

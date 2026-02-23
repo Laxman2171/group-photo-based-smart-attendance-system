@@ -5,13 +5,14 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { connectDB } from "./config/db.js";
 
-// Import routes
+// Import all route files
 import authRoutes from "./routes/auth.routes.js";
 import classRoutes from "./routes/class.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import studentRoutes from "./routes/student.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
-import teacherRoutes from "./routes/teacher.routes.js"; // <-- ADD THIS
+import teacherRoutes from "./routes/teacher.routes.js";
+import reportRoutes from "./routes/report.routes.js";
 
 dotenv.config();
 const app = express();
@@ -28,7 +29,8 @@ app.use("/api/classes", classRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/attendance", attendanceRoutes);
-app.use("/api/teachers", teacherRoutes); // <-- AND ADD THIS
+app.use("/api/teachers", teacherRoutes);
+app.use("/api/reports", reportRoutes);
 
 // A simple health check route
 app.get("/", (_req, res) => res.send("Smart Attendance API is Alive!"));

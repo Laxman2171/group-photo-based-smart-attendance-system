@@ -1,17 +1,17 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom'; // <-- 1. IMPORT Link
-import { AuthContext } from '../context/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext'; // <-- 1. Import our new useAuth hook
 import { TextInput, PasswordInput, Button, Box, Title, Paper, Text } from '@mantine/core';
 
 function LoginPage() {
-  // ... all the login logic remains the same ...
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
   const navigate = useNavigate();
-  const { login } = useContext(AuthContext);
+  const { login } = useAuth(); // <-- 2. USE the new hook
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -62,15 +62,12 @@ function LoginPage() {
             Login
           </Button>
         </form>
-
-        {/* --- 2. ADD THIS LINK AT THE BOTTOM --- */}
         <Text c="dimmed" size="sm" ta="center" mt="md">
           Don't have an account yet?{' '}
           <Link to="/register" style={{textDecoration: 'none', color: '#1971c2', fontWeight: 500}}>
             Register here
           </Link>
         </Text>
-
       </Paper>
     </Box>
   );

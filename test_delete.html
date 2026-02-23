@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Class Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        input, button { padding: 10px; margin-top: 10px; width: 500px; }
+        button { background-color: #fa5252; color: white; border: none; cursor: pointer; font-weight: bold; }
+        #result { margin-top: 20px; padding: 10px; border: 1px solid #ccc; background-color: #f0f0f0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+    <h2>Test: Delete a Class</h2>
+
+    <form id="deleteForm">
+        <label for="token">1. Paste Teacher Token:</label><br>
+        <input type="text" id="token" placeholder="Paste a valid Teacher's Token" required><br><br>
+
+        <label for="classId">2. Paste Class ID to Delete:</label><br>
+        <input type="text" id="classId" placeholder="Paste the ID of the class you want to delete" required><br><br>
+
+        <button type="submit">DELETE THIS CLASS</button>
+    </form>
+
+    <h3>Result:</h3>
+    <pre id="result">Waiting for test...</pre>
+
+    <script>
+        const form = document.getElementById('deleteForm');
+        const resultDiv = document.getElementById('result');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const token = document.getElementById('token').value;
+            const classId = document.getElementById('classId').value;
+
+            if (!token || !classId) {
+                resultDiv.textContent = 'Error: Please fill in both fields.';
+                return;
+            }
+
+            // This is the confirmation popup you asked for
+            const isConfirmed = confirm(`Are you sure you want to permanently delete the class with ID: ${classId}?`);
+
+            if (!isConfirmed) {
+                resultDiv.textContent = 'Delete operation cancelled by user.';
+                return;
+            }
+
+            resultDiv.textContent = 'Sending delete request...';
+
+            const apiUrl = `http://localhost:5000/api/classes/${classId}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'DELETE', // <-- This is the key part for this test
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Something went wrong');
+                }
+
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                resultDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+
+</body>
+</html>

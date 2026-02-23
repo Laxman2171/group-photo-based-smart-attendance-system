@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
-import { Checkbox, Button, Box, Text, Loader, Stack, Group } from '@mantine/core';
+import { useAuth } from '../context/AuthContext'; // <-- 1. Import our new useAuth hook
+import { Checkbox, Button, Box, Text, Loader, Stack } from '@mantine/core';
 
-// This component receives the classId and a refresh function from its parent page
 function EnrollStudentForm({ classId, onStudentEnrolled }) {
-  const { token } = useContext(AuthContext);
+  const { token } = useAuth(); // <-- 2. USE the new hook
 
   const [unenrolledStudents, setUnenrolledStudents] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -28,7 +27,6 @@ function EnrollStudentForm({ classId, onStudentEnrolled }) {
     }
   };
 
-  // Run the fetch function once when the component first loads
   useEffect(() => {
     fetchUnenrolled();
   }, [classId, token]);
@@ -36,8 +34,8 @@ function EnrollStudentForm({ classId, onStudentEnrolled }) {
   const handleCheckboxChange = (studentId) => {
     setSelectedStudents(prevSelected =>
       prevSelected.includes(studentId)
-        ? prevSelected.filter(id => id !== studentId) // Unselect
-        : [...prevSelected, studentId] // Select
+        ? prevSelected.filter(id => id !== studentId)
+        : [...prevSelected, studentId]
     );
   };
 
@@ -45,7 +43,6 @@ function EnrollStudentForm({ classId, onStudentEnrolled }) {
     e.preventDefault();
     setError('');
     setSuccess('');
-
     if (selectedStudents.length === 0) {
       setError('Please select at least one student to enroll.');
       return;
@@ -57,15 +54,15 @@ function EnrollStudentForm({ classId, onStudentEnrolled }) {
       await axios.post(`http://localhost:5000/api/classes/${classId}/enroll`, body, config);
 
       setSuccess('Students enrolled successfully!');
-      setSelectedStudents([]); // Clear the selection
-      fetchUnenrolled(); // Refresh the list of unenrolled students
-      onStudentEnrolled(); // IMPORTANT: Tell the parent page to refresh its own list!
+      setSelectedStudents([]);
+      fetchUnenrolled();
+      onStudentEnrolled();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to enroll students.');
     }
   };
 
-  if (isLoading) return <Loader mt="md" />;
+  if (isLoading) return <p>Loading available students...</p>;
 
   return (
     <Box mt="xl">
@@ -76,7 +73,7 @@ function EnrollStudentForm({ classId, onStudentEnrolled }) {
             {unenrolledStudents.map(student => (
               <Checkbox
                 key={student._id}
-                label={`${student.name} (Roll: ${student.roll})`}
+                label={`${student.name} (PRN: ${student.prn})`}
                 checked={selectedStudents.includes(student._id)}
                 onChange={() => handleCheckboxChange(student._id)}
               />
