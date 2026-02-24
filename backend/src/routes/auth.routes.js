@@ -6,6 +6,7 @@ import multer from "multer";
 import cloudinary from "../config/cloudinary.js";
 import { Student } from "../models/Student.js";
 import { Teacher } from "../models/Teacher.js";
+import { ClassModel } from "../models/Class.js";
 import axios from "axios";
 
 const router = Router();
@@ -50,6 +51,23 @@ router.post("/student/register", upload.single("profilePhoto"), async (req, res)
 
       const passwordHash = await bcrypt.hash(password, 10);
       const newStudent = await Student.create({ name, prn, department, year, email, semester, passwordHash, profilePhotoUrl, faceEmbedding });
+
+      // AUTO-ENROLL: Find all classes that match this student's department, year, semester
+      const matchingClasses = await ClassModel.find({ department, year, semester });
+      if (matchingClasses.length > 0) {
+        const classIds = matchingClasses.map(c => c._id);
+        // Add student to each matching class
+        await ClassModel.updateMany(
+          { _id: { $in: classIds } },
+          { $addToSet: { students: newStudent._id } }
+        );
+        // Add classes to student's record
+        await Student.findByIdAndUpdate(newStudent._id, {
+          $addToSet: { classes: { $each: classIds } }
+        });
+        console.log(`✓ Auto-enrolled student ${prn} in ${matchingClasses.length} existing class(es)`);
+      }
+
       const token = signToken(newStudent._id, "student", { prn, name, department, year, semester });
       res.status(201).json({ token, user: { id: newStudent._id, name, prn, role: "student", department, year, semester } });
     } catch (e) {

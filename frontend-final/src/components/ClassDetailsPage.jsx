@@ -15,7 +15,8 @@ import {
   IconCircleCheck, IconArrowLeft, IconDownload, IconUsers, IconCamera,
   IconCalendarStats, IconUserPlus, IconChartBar, IconClipboardCheck,
   IconBook, IconSchool, IconClock, IconFileSpreadsheet, IconPhoto,
-  IconChevronRight, IconTrendingUp, IconCalendar, IconX, IconArrowRight
+  IconChevronRight, IconTrendingUp, IconCalendar, IconX, IconArrowRight,
+  IconRefresh
 } from '@tabler/icons-react';
 
 // ============================================================================
@@ -231,6 +232,7 @@ function ClassDetailsPage() {
   
   const [reportModalOpened, { open: openReportModal, close: closeReportModal }] = useDisclosure(false);
   const [enrollModalOpened, { open: openEnrollModal, close: closeEnrollModal }] = useDisclosure(false);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchData = async () => {
     if (!token) return;
@@ -243,6 +245,20 @@ function ClassDetailsPage() {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Sync students from database based on matching criteria
+  const handleSyncStudents = async () => {
+    setSyncing(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(`http://localhost:5000/api/classes/${classId}/sync-students`, {}, config);
+      await fetchData(); // Refresh the class data
+    } catch (err) {
+      console.error("Failed to sync students:", err);
+    } finally {
+      setSyncing(false);
     }
   };
   
@@ -494,13 +510,26 @@ function ClassDetailsPage() {
                   <Title order={3}>Enrolled Students</Title>
                   <Text size="sm" c="dimmed">Manage students in this class</Text>
                 </Box>
-                <Button 
-                  leftSection={<IconUserPlus size={18} />}
-                  radius="xl"
-                  onClick={openEnrollModal}
-                >
-                  Enroll Students
-                </Button>
+                <Group>
+                  <Tooltip label="Sync students from database matching class criteria">
+                    <Button 
+                      variant="light"
+                      leftSection={<IconRefresh size={18} />}
+                      radius="xl"
+                      onClick={handleSyncStudents}
+                      loading={syncing}
+                    >
+                      Sync Students
+                    </Button>
+                  </Tooltip>
+                  <Button 
+                    leftSection={<IconUserPlus size={18} />}
+                    radius="xl"
+                    onClick={openEnrollModal}
+                  >
+                    Enroll Students
+                  </Button>
+                </Group>
               </Group>
 
               {studentCount > 0 ? (

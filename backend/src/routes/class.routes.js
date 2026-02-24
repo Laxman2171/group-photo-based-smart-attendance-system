@@ -84,6 +84,57 @@ router.get("/teacher", auth("teacher"), async (req, res) => {
   }
 });
 
+// Route: SYNC ALL STUDENTS TO THEIR MATCHING CLASSES (Teacher Only)
+// This re-enrolls students based on their department/year/semester
+router.post("/:classId/sync-students", auth("teacher"), async (req, res) => {
+  try {
+    const { classId } = req.params;
+    
+    // Get the class
+    const classDoc = await ClassModel.findById(classId);
+    if (!classDoc) {
+      return res.status(404).json({ message: "Class not found" });
+    }
+    
+    // Verify ownership
+    if (classDoc.teacher.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    
+    // Find all students matching this class's criteria
+    const matchingStudents = await Student.find({
+      department: classDoc.department,
+      year: classDoc.year,
+      semester: classDoc.semester
+    });
+    
+    const studentIds = matchingStudents.map(s => s._id);
+    
+    // Update the class with all matching students (using $addToSet to avoid duplicates)
+    await ClassModel.findByIdAndUpdate(classId, {
+      $addToSet: { students: { $each: studentIds } }
+    });
+    
+    // Update all matching students to include this class
+    if (studentIds.length > 0) {
+      await Student.updateMany(
+        { _id: { $in: studentIds } },
+        { $addToSet: { classes: classId } }
+      );
+    }
+    
+    console.log(`✓ Synced class ${classDoc.name}: ${studentIds.length} students`);
+    
+    res.json({ 
+      message: `Synced ${studentIds.length} students to class`,
+      studentCount: studentIds.length
+    });
+  } catch (e) {
+    console.error("Error syncing students:", e);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Route: GET A SINGLE CLASS BY ITS ID (Teacher Only)
 router.get("/:classId", auth("teacher"), async (req, res) => {
   try {
